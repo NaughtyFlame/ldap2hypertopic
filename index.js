@@ -55,8 +55,45 @@ function sendItems(request, response) {
   });
 }
 
+function sendAttributes(request, response) {
+  var corpus = request.params.corpus;
+  var rows = [];
+  for (var attribute of config.ldap.attributes) {
+    rows.push({key:[corpus, config.hypertopic[attribute]||attribute]});
+  }
+  response.json({rows:rows});
+}
+
+function sendAttributeValues(request, response){
+  var corpus = request.params.corpus;
+  var attribute = request.params.attribute;
+  var filter = '(' + config.ldap.class + '=' + request.params.corpus + ')';
+  filter ='(&' + filter + '(' + request.params.attribute + '=*' + request.params.value + '*))';
+
+  var options = {
+    scope: 'sub', 
+    filter: filter,
+    attributes: config.ldap.attributes
+  };
+  payload.init(request.params.corpus, request.params.attribute);
+  ldap.search(config.ldap.base, options, function(err, ldap_response) {
+    ldap_response.on('searchEntry', function(entry) {
+      payload.push(entry.object);
+    });
+    ldap_response.on('error', function(err) {
+      console.error('error: ' + err.message);
+    });
+    ldap_response.on('end', function() {
+      payload.send(response);
+    });
+  });
+}
+
 app.use(cors)
-.get(['/corpus/:corpus', '/item/:corpus/:item'], sendItems);
+.get(['/corpus/:corpus', '/item/:corpus/:item'], sendItems)
+.get('/attribute/:corpus/', sendAttributes)
+//.get('/attribute/:corpus/:attribute', sendAttributeValues)
+.get('/attribute/:corpus/:attribute/:value', sendAttributeValues);
 
 app.listen(config.port);
 console.log('Server running on port ' + config.port);
